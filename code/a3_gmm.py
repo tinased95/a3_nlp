@@ -3,7 +3,7 @@ import numpy as np
 import os, fnmatch
 import random
 
-dataDir = '/u/cs401/A3/data/'
+dataDir = '../data .nosync'
 
 
 class theta:
@@ -13,6 +13,25 @@ class theta:
         self.mu = np.zeros((M, d))
         self.Sigma = np.zeros((M, d))
 
+
+def preCompute(myTheta):
+    sigmaSquare = myTheta.Sigma
+    M, d = myTheta.mu.shape
+
+    term1 = np.divide(myTheta.mu ** 2, sigmaSquare, out=np.zeros_like(sigmaSquare), where=(sigmaSquare != 0))
+    term1 = (0.5) * np.sum(term1, axis=1)  # .reshape((M, 1))
+    term2 = (d / float(2)) * (np.log(2 * np.pi))
+    term3 = (0.5) * np.sum(np.log(sigmaSquare, where=(sigmaSquare != 0)), axis=1)  # .reshape((M, 1))
+    result = (term1 + term2 + term3).flatten()
+
+    preComputedForM = []
+
+    d = myTheta.Sigma.shape[1]
+
+    vector_term = 0.5 * np.sum(np.power(myTheta.mu, 2) / myTheta.Sigma + np.log(myTheta.Sigma), axis=1)
+    constant_term = 0.5 * d * np.log(2 * np.pi)
+
+    return result.tolist()
 
 def log_b_m_x(m, x, myTheta, preComputedForM=[]):
     ''' Returns the log probability of d-dimensional vector x using only component m of model myTheta

@@ -1,11 +1,13 @@
-import a3_gmm
+import a3
 import numpy as np
 
-d = 5
-m = 8
+d = 13
+k = 5  # number of top speakers to display, <= 0 if none
+M = 8
+n = 100
 
-x = np.empty(d)
+x = np.empty((n, d))
 
-myTheta = a3_gmm.theta('S-13A', m, d)
+myTheta = a3_gmm_structured.theta('S-13A', M, d)
 # print(myTheta.mu)
-a3_gmm.log_b_m_x(m, x, myTheta)
+myTheta.precomputedforM(1)
