@@ -3,7 +3,7 @@ import numpy as np
 import os, fnmatch
 import random
 
-dataDir = '../data .nosync'
+dataDir = '../data .nosync'  # TODO change this!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # "/u/cs401/A3/data/"
 
 
@@ -27,10 +27,10 @@ class theta:
         NOTE: use this in `log_b_m_x` below
         """
         M, d = self.mu.shape
-        term1 = np.sum(np.square(self.mu[m]) / 2 * self.Sigma[m])
+        term1 = np.sum(np.square(self.mu[m]) / self.Sigma[m] / 2)
         term2 = d * (np.log(2 * np.pi)) / 2
-        term3 = np.log(np.prod(self.Sigma[m])) / 2
-        return term1 + term2 + term3
+        term3 = 0.5 * np.log(np.prod(self.Sigma[m]))
+        return -(term1 + term2 + term3)
 
     def reset_omega(self, omega):
         """Pass in `omega` of shape [M, 1] or [M]
@@ -72,7 +72,10 @@ def log_b_m_x(m, x, myTheta):
     But we encourage you to use the vectorized version in your `train`
     function for faster/efficient computation.
     """
-    print("TODO")
+    sigma = myTheta.Sigma[m]
+    mu = myTheta.mu[m]
+    x_term = np.sum(-0.5 * (np.square(x) / sigma) + (np.multiply(mu, x) / sigma), axis=1)
+    return x_term + myTheta.precomputedForM(m)
 
 
 def log_p_m_x(log_Bs, myTheta):
@@ -88,7 +91,8 @@ def log_p_m_x(log_Bs, myTheta):
 
     NOTE: For a description of `log_Bs`, refer to the docstring of `logLik` below
     """
-    print("TODO")
+    log_omegabs = log_Bs + np.log(myTheta.omega)
+    return log_omegabs - stable_logsumexp(log_omegabs, axis=0)
 
 
 def logLik(log_Bs, myTheta):
@@ -103,20 +107,55 @@ def logLik(log_Bs, myTheta):
 
         See equation 3 of the handout
     """
-    print("TODO")
+    log_omegas = np.log(myTheta.omega)
+    return np.sum(stable_logsumexp(log_Bs + log_omegas, axis=0))
+
+
+def stable_logsumexp(array_like, axis=-1):
+    """Compute the stable logsumexp of `vector_like` along `axis`
+    This `axis` is used primarily for vectorized calculations.
+    """
+    array = np.asarray(array_like)
+    # keepdims should be True to allow for broadcasting
+    m = np.max(array, axis=axis, keepdims=True)
+    return m + np.log(np.sum(np.exp(array - m), axis=axis))
 
 
 def train(speaker, X, M=8, epsilon=0.0, maxIter=20):
     """ Train a model for the given speaker. Returns the theta (omega, mu, sigma)"""
     myTheta = theta(speaker, M, X.shape[1])
-    # perform initialization (Slide 32)
-    print("TODO : Initialization")
-    # for ex.,
-    # myTheta.reset_omega(omegas_with_constraints)
-    # myTheta.reset_mu(mu_computed_using_data)
-    # myTheta.reset_Sigma(some_appropriate_sigma)
+    T, d = X.shape
+    prev_L = float('-inf')
+    improvement = float('inf')
 
-    print("TODO: Rest of training")
+    # perform initialization (Slide 32)
+    myTheta.reset_omega(np.full((M, 1), 1 / M))
+    myTheta.reset_mu(np.array([X[i] for i in np.random.choice(T, M)]))
+    myTheta.reset_Sigma(np.full((M, d), 1.0))
+
+    i = 0
+    while i < maxIter and improvement >= epsilon:
+
+        # compute intermediate results
+        log_Bs = np.zeros((M, T))
+        for m in range(M):
+            log_Bs[m] = log_b_m_x(m, X, myTheta)
+        log_Ps = log_p_m_x(log_Bs, myTheta)
+        L = logLik(log_Bs, myTheta)
+
+        # Update Parameters
+        log_Ps_exp = np.exp(log_Ps)
+
+        p_m_x = np.sum(log_Ps_exp, axis=1).reshape((M, 1))
+        myTheta.omega = p_m_x / float(T)
+
+        myTheta.mu = np.divide(np.dot(log_Ps_exp, X), p_m_x)
+
+        myTheta.Sigma = np.divide(np.dot(log_Ps_exp, X ** 2), p_m_x) - (myTheta.mu ** 2)
+
+        improvement = L - prev_L
+        prev_L = L
+        i = i + 1
 
     return myTheta
 
@@ -135,7 +174,24 @@ def test(mfcc, correctID, models, k=5):
         the format of the log likelihood (number of decimal places, or exponent) does not matter
     """
     bestModel = -1
-    print("TODO")
+    log_likelihood = np.zeros(len(models))
+    T, d = mfcc.shape
+    M = models[0].omega.shape[0]
+
+    log_Bs = np.zeros((len(models), M, T))
+    for i in range(len(models)):
+        for m in range(M):
+            log_Bs[i, m, :] = log_b_m_x(m, mfcc, models[i])
+
+    for i in range(len(models)):
+        log_likelihood[i] = logLik(log_Bs[i], models[i])
+
+    bestModel = np.argmax(log_likelihood)
+    if k > 0:
+        top_k = log_likelihood.argsort()
+        print('{}'.format(models[correctID].name))
+        for i in range(1, k + 1):
+            print('{} {}'.format(models[int(top_k[-i])].name, log_likelihood[int(top_k[-i])]))
 
     return 1 if (bestModel == correctID) else 0
 
@@ -176,3 +232,4 @@ if __name__ == "__main__":
     for i in range(0, len(testMFCCs)):
         numCorrect += test(testMFCCs[i], i, trainThetas, k)
     accuracy = 1.0 * numCorrect / len(testMFCCs)
+    print("Accuracy: {}".format(accuracy))
