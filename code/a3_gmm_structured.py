@@ -3,8 +3,8 @@ import numpy as np
 import os, fnmatch
 import random
 
-dataDir = '../data .nosync'  # TODO change this!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# "/u/cs401/A3/data/"
+dataDir = '/u/cs401/A3/data/'
+# '../data .nosync'
 
 
 class theta:
@@ -200,7 +200,7 @@ if __name__ == "__main__":
 
     trainThetas = []
     testMFCCs = []
-    print("TODO: you will need to modify this main block for Sec 2.3")
+    # print("TODO: you will need to modify this main block for Sec 2.3")
     d = 13
     k = 5  # number of top speakers to display, <= 0 if none
     M = 8
