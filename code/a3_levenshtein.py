@@ -1,10 +1,8 @@
 import os
 import numpy as np
 import string
-from scipy import stats
 
-dataDir = '/Users/tina/Documents/UofT/Winter 2020/CSC2511/a3/data .nosync'
-
+dataDir = '/u/cs401/A3/data/'
 
 def Levenshtein(r, h):
     """
@@ -31,8 +29,6 @@ def Levenshtein(r, h):
     >>> wer("".split(), "who is there".split())
     Inf 0 3 0
     """
-
-    # define variables
     n, m = len(r), len(h)
 
     # distance matrix initialization
@@ -42,11 +38,10 @@ def Levenshtein(r, h):
 
     # backtrace matrix initialization
     B = np.zeros((n + 1, m + 1), dtype=object)
-    B[0, :] = 'left'  # first row (0) is insertion errors
-    B[:, 0] = 'up'  # first column (0) is deletion errors
-    B[0, 0] = ''  # (0,0) no need to considered
+    B[0, :] = 'left'
+    B[:, 0] = 'up'
+    B[0, 0] = ''
 
-    # update R and B
     for i in range(1, n + 1):
         for j in range(1, m + 1):
             del_error = R[i - 1, j] + 1  # deletion
@@ -68,8 +63,7 @@ def Levenshtein(r, h):
                 B[i, j] = 'up-left'
 
     nI, nD = 0, 0
-    t = n
-    s = m
+    t, s = n, m
     while True:
         if t <= 0 and s <= 0:
             break
@@ -85,18 +79,12 @@ def Levenshtein(r, h):
             s = s - 1
 
     wer = 100 * R[n, m] / float(n)
-    nS = np.rint(R[n, m] - nI - nD).astype(int)
+    nS = np.rint(R[n, m] - nI - nD)
 
     return wer, nS, nI, nD
 
 
 def preprocess_line(line):
-    """
-    Removes all punctuation (excluding []) from line,
-    and sets all remaining letters to lowercase.
-
-    Returns the whitespace-split version of line.
-    """
     punc_to_remove = set(string.punctuation) - set("[]")
     return "".join([
         char.lower() if char not in punc_to_remove else " "
@@ -105,7 +93,7 @@ def preprocess_line(line):
 
 
 if __name__ == "__main__":
-    output = open("asrDiscussion.txt", 'w')
+    output = []
     google_errors, kaldi_errors = [], []
     for subdir, dirs, files in os.walk(dataDir):
         for speaker in dirs:
@@ -115,58 +103,42 @@ if __name__ == "__main__":
             google_path = os.path.join(base_path, 'transcripts.Google.txt')
             kaldi_path = os.path.join(base_path, 'transcripts.Kaldi.txt')
 
-            # read files
-            ref_file = open(ref_path, 'r')
-            ref_lines = ref_file.read().split('\n')
-            if ref_lines[-1] == '':
-                ref_lines = ref_lines[0:-1]
-            ref_file.close()
+            ref_lines = open(ref_path, 'r').read().splitlines()
+            google_lines = open(google_path, 'r').read().splitlines()
+            kaldi_lines = open(kaldi_path, 'r').read().splitlines()
 
-            google_file = open(google_path, 'r')
-            google_lines = google_file.read().split('\n')
-            if google_lines[-1] == '':
-                google_lines = google_lines[0:-1]
-            google_file.close()
+            if len(ref_lines) * len(google_lines) * len(kaldi_lines) > 0:
+                for i in range(min(len(ref_lines), len(google_lines), len(kaldi_lines))):
+                    ref = preprocess_line(ref_lines[i])
+                    google = preprocess_line(google_lines[i])
+                    kaldi = preprocess_line(kaldi_lines[i])
 
-            kaldi_file = open(kaldi_path, 'r')
-            kaldi_lines = kaldi_file.read().split('\n')
-            if kaldi_lines[-1] == '':
-                kaldiLines = kaldi_lines[0:-1]
-            kaldi_file.close()
+                    google_result = Levenshtein(ref, google)
+                    google_errors.append(google_result[0])
 
-            length = min(len(ref_lines), len(google_lines), len(kaldi_lines))
+                    kaldi_result = Levenshtein(ref, kaldi)
+                    kaldi_errors.append(kaldi_result[0])
 
-            # loop over each line
-            for i in range(0, length):
-                ref = preprocess_line(ref_lines[i])
-                google = preprocess_line(google_lines[i])
-                kaldi = preprocess_line(kaldi_lines[i])
+                    output.append("[%s] [%s] [%d] [%f] S:[%d] I:[%d] D:[%d]\n" %
+                                  (speaker, "Kaldi", i, kaldi_result[0], kaldi_result[1], kaldi_result[2], kaldi_result[3]))
+                    output.append("[%s] [%s] [%d] [%f] S:[%d] I:[%d] D:[%d]\n" %
+                                  (speaker, "Google", i, google_result[0], google_result[1], google_result[2], google_result[3]))
 
-                # compute error rate
-                google_result = Levenshtein(ref, google)
-                google_errors.append(google_result[0])
+    fout = open("asrDiscussion.txt", 'w')
+    for line in output:
+        fout.write(line)
 
-                kaldi_result = Levenshtein(ref, kaldi)
-                kaldi_errors.append(kaldi_result[0])
-
-                # write computed results into file
-                output.write('{0} {1} {2} {3: 1.4f} S:{4}, I:{5}, D:{6} \n'.format(speaker, 'Google', i,
-                                                                                   google_result[0], google_result[1],
-                                                                                   google_result[2],
-                                                                                   google_result[3]))
-
-                output.write('{0} {1} {2} {3: 1.4f} S:{4}, I:{5}, D:{6} \n'.format(speaker, 'Kaldi', i,
-                                                                                   kaldi_result[0], kaldi_result[1],
-                                                                                   kaldi_result[2], kaldi_result[3]))
-            output.write('\n\n')
-
-    googleErrors = np.array(google_errors)
-    kaldiErrors = np.array(kaldi_errors)
-
-    t_value, p_value = stats.ttest_ind(googleErrors, kaldiErrors, equal_var=False)
-    output.write('Google WER Average: {0: 1.4f}, Google WER Standard Deviation: {1: 1.4f}, \
-        Kaldi WER Average: {2: 1.4f}, Kaldi WER Standard Deviation: {3: 1.4f}, \
-        Calculate T-test for Google WER and Kaldi WER:  T-value: {4: 1.4f}  P-value: {5} \n'.format(
-        np.mean(googleErrors), np.std(googleErrors), np.mean(kaldiErrors), np.std(kaldiErrors), t_value, p_value))
-
-    output.close()
+    google_mean = np.mean(google_errors)
+    google_std = np.std(google_result)
+    kaldi_mean = np.mean(kaldi_result)
+    kaldi_std = np.std(kaldi_result)
+    fout.write("Google mean %f \nGoogle std %f \nKaldi mean %f \nKaldi std %f \n" % (np.mean(google_errors),
+                                                                                         np.std(google_errors),
+                                                                                         np.mean(kaldi_errors),
+                                                                                         np.std(kaldi_errors)))
+    fout.write("\n\n")
+    fout.write("Discussion: As we can see from the results, Kaldi has better accuracy than Google. The Google "
+               "translation will make more substitution deletion errors. By examining the translations from both "
+               "models, we can see that the Google translation makes a sentence more readable, whereas Kaldi tries"
+               " to keep the origin. One mistake google made is to ignore sounds like um, hm, etc.")
+    fout.close()
